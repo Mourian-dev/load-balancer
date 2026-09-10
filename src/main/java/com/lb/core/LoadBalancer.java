@@ -18,7 +18,7 @@ public class LoadBalancer {
     private final LoadBalancerAlgorithm algorithm;
     private final WebClient webClient;
 
-    public LoadBalancer(ResourcePool resourcePool,LoadBalancerAlgorithm algorithm) {
+    public LoadBalancer(ResourcePool resourcePool, LoadBalancerAlgorithm algorithm) {
         this.resourcePool = resourcePool;
         this.algorithm = algorithm;
         this.webClient = WebClient.builder().build();
