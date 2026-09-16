@@ -3,6 +3,7 @@ package com.lb.core;
 import com.lb.algorithm.LoadBalancerAlgorithm;
 import com.lb.backend.BackendInstance;
 import com.lb.backend.ResourcePool;
+import com.lb.health.HealthCheckManager;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
@@ -10,6 +11,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.util.List;
 
 @Slf4j
 @Component
@@ -17,18 +19,26 @@ public class LoadBalancer {
     private final ResourcePool resourcePool;
     private final LoadBalancerAlgorithm algorithm;
     private final WebClient webClient;
+    private final HealthCheckManager healthCheckManager;
 
-    public LoadBalancer(ResourcePool resourcePool, LoadBalancerAlgorithm algorithm) {
+    public LoadBalancer(ResourcePool resourcePool, LoadBalancerAlgorithm algorithm, HealthCheckManager healthCheckManager) {
         this.resourcePool = resourcePool;
         this.algorithm = algorithm;
         this.webClient = WebClient.builder().build();
+        this.healthCheckManager = healthCheckManager;
     }
 
     public Mono<String> routeRequest(String path, String method, String clientIp) {
+        List<BackendInstance> healthyInstances = healthCheckManager.getHealthyBackends();
+
+        if(healthyInstances.isEmpty()) {
+            log.error("No healthy backends available");
+            return Mono.just("{\"error\": \"No healthy backends available\"}");
+        }
+
         log.debug("Routing: {} {}", method, path);
 
-        var backends = resourcePool.getAll();
-        var selected = algorithm.selectBackend(backends, clientIp)
+        var selected = algorithm.selectBackend(healthyInstances, clientIp)
                 .orElseThrow(() -> new RuntimeException("No backends available"));
 
         log.info("Selected backend: {} for {} {}", selected.getId(), method, path);
@@ -47,7 +57,13 @@ public class LoadBalancer {
                 .retrieve()
                 .bodyToMono(String.class)
                 .timeout(Duration.ofSeconds(5))
-                .doOnSuccess(response -> log.debug("Got response from {}", instance.getId()))
-                .doOnError(error -> log.warn("Error from {}: {}", instance.getId(), error.getMessage()));
+                .doOnSuccess(response -> {
+                    log.debug("Got response from {}", instance.getId());
+                    healthCheckManager.recordSuccess(instance);
+                })
+                .doOnError(error -> {
+                    log.warn("Error from {}: {}", instance.getId(), error.getMessage());
+                    healthCheckManager.recordFailure(instance);
+                });
     }
 }

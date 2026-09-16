@@ -12,6 +12,17 @@ logging:
 
 load-balancer:
   algorithm: "round-robin"
+
+  health-check:
+    active:
+      enabled: true
+      interval-seconds: 10
+      timeout-seconds: 5
+      health-endpoint: /health
+    passive:
+      enabled: true
+      failure-threshold: 3
+
   instances:
     - id: backend-1
       host: localhost

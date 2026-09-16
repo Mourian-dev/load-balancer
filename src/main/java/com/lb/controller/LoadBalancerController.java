@@ -18,7 +18,7 @@ import reactor.core.publisher.Mono;
 public class LoadBalancerController {
     private final LoadBalancer loadBalancer;
 
-    @RequestMapping(value = "/**", method = {
+    @RequestMapping(value="/**", method={
             RequestMethod.GET,
             RequestMethod.POST,
             RequestMethod.PUT,
@@ -29,19 +29,14 @@ public class LoadBalancerController {
         String path = request.getRequestURI();
         String method = request.getMethod();
 
-        log.info("LB received: {} {}", method, path);
+        log.info("LB received: {} {}",method,path);
 
         return loadBalancer
-                .routeRequest(path, method, request.getRemoteAddr())
+                .routeRequest(path,method,request.getRemoteAddr())
                 .map(ResponseEntity::ok)
-                .onErrorResume(err -> {
-                    log.error("Error: {}", err.getMessage());
-                    return Mono.just(ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body("Service Unavailable: " + err.getMessage()));
+                .onErrorResume(err->{
+                    log.error("Error: {}",err.getMessage());
+                    return Mono.just(ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body("Service Unavailable: "+err.getMessage()));
                 });
-    }
-
-    @GetMapping("/lb/health")
-    public ResponseEntity<String> health() {
-        return ResponseEntity.ok("load balancer is healthy");
     }
 }
